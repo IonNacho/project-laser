@@ -61,44 +61,57 @@ class FM6App(tk.Tk):
         frm = right
         ttk.Label(frm, text='FM6 Entry', font=('Helvetica', 14, 'bold')).pack(pady=8)
 
-        # load mapping if available
+        # load mapping if available and build fields
         self.entries = {}
         mapping_file = 'fm6_mapping.json'
         if os.path.exists(mapping_file):
             try:
                 with open(mapping_file, 'r', encoding='utf-8') as f:
                     m = json.load(f)
-                    fields = [(it['key'], it['label']) for it in m.get('fields', [])]
+                    fields = m.get('fields', [])
             except Exception:
-                fields = [
-                    ('operator', 'Operator name'),
-                    ('timestamp', 'Timestamp (auto)'),
-                    ('lot', 'Lot number'),
-                ]
+                fields = []
         else:
+            fields = []
+
+        if not fields:
+            # default fields derived from FM6 image
             fields = [
-                ('operator', 'Operator name'),
-                ('timestamp', 'Timestamp (auto)'),
-                ('lot', 'Lot number'),
-                ('eq_indicator', 'Digital force indicator (EQ0155-01)'),
-                ('eq_stand', 'Force test stand (EQ0155-03)'),
-                ('load_cell', 'Load cell (EQ0155-05-A/B)'),
-                ('comments', 'Comments'),
+                {'key': 'operator', 'label': 'Operator name', 'required': True},
+                {'key': 'timestamp', 'label': 'Timestamp (auto)', 'required': False},
+                {'key': 'lot', 'label': 'Lot number', 'required': True},
+                {'key': 'eq_indicator', 'label': 'Digital force indicator (EQ0155-01)', 'required': True},
+                {'key': 'eq_stand', 'label': 'Force test stand (EQ0155-03)', 'required': True},
+                {'key': 'load_cell', 'label': 'Load cell (EQ0155-05-A/B)', 'required': True},
+                {'key': 'comments', 'label': 'Comments', 'required': False},
             ]
 
-        for key, label in fields:
+        # create form rows
+        for it in fields:
+            if isinstance(it, dict):
+                key = it.get('key')
+                label = it.get('label')
+                required = bool(it.get('required'))
+            else:
+                # fallback tuple
+                key, label = it
+                required = False
             row = ttk.Frame(frm)
             row.pack(fill='x', padx=6, pady=4)
-            ttk.Label(row, text=label+':', width=28).pack(side='left')
+            ttk.Label(row, text=label + (':' if not label.endswith(':') else ''), width=28).pack(side='left')
             ent = ttk.Entry(row)
             ent.pack(side='left', fill='x', expand=True)
-            self.entries[key] = ent
+            self.entries[key] = {'widget': ent, 'required': required, 'label': label}
             if key != 'timestamp':
                 btn = ttk.Button(row, text='Capture', width=8, command=lambda k=key: self.start_capture(k))
                 btn.pack(side='left', padx=4)
 
-        # set timestamp automatically
-        self.entries['timestamp'].insert(0, utc_now_iso())
+        # set timestamp automatically if present
+        if 'timestamp' in self.entries:
+            try:
+                self.entries['timestamp']['widget'].insert(0, utc_now_iso())
+            except Exception:
+                pass
 
         btns = ttk.Frame(frm)
         btns.pack(fill='x', pady=10, padx=6)
@@ -138,8 +151,11 @@ class FM6App(tk.Tk):
             return
         val = self.capture_buffer.strip()
         if val:
-            self.entries[self.current_capture_target].delete(0, 'end')
-            self.entries[self.current_capture_target].insert(0, val)
+            meta = self.entries.get(self.current_capture_target)
+            if meta:
+                w = meta['widget']
+                w.delete(0, 'end')
+                w.insert(0, val)
         # reset
         self.capture_buffer = ''
         self.current_capture_target = None
@@ -147,17 +163,34 @@ class FM6App(tk.Tk):
         self.capture_timer = None
 
     def save_form(self):
-        rec = {k: self.entries[k].get().strip() for k in self.entries}
+        rec = {}
+        missing = []
+        for k, meta in self.entries.items():
+            val = meta['widget'].get().strip()
+            rec[k] = val
+            if meta.get('required') and not val:
+                missing.append(meta.get('label') or k)
         rec['saved_at'] = utc_now_iso()
+        rec['missing_required'] = missing
         # append
         with open('fm6_filled.jsonl', 'a', encoding='utf-8') as f:
             f.write(json.dumps(rec) + '\n')
-        messagebox.showinfo('Saved', 'Form saved to fm6_filled.jsonl')
+        if missing:
+            messagebox.showwarning('Saved with missing', 'Form saved but required fields missing:\n' + '\n'.join(missing))
+        else:
+            messagebox.showinfo('Saved', 'Form saved to fm6_filled.jsonl')
 
     def clear_form(self):
-        for k, e in self.entries.items():
-            e.delete(0, 'end')
-        self.entries['timestamp'].insert(0, utc_now_iso())
+        for k, meta in self.entries.items():
+            try:
+                meta['widget'].delete(0, 'end')
+            except Exception:
+                pass
+        if 'timestamp' in self.entries:
+            try:
+                self.entries['timestamp']['widget'].insert(0, utc_now_iso())
+            except Exception:
+                pass
 
     def export_csv(self):
         # simple export of fm6_filled.jsonl to csv
@@ -170,13 +203,22 @@ class FM6App(tk.Tk):
             with open('fm6_filled.jsonl', 'r', encoding='utf-8') as f:
                 for line in f:
                     rows.append(json.loads(line))
-            keys = list(self.entries.keys()) + ['saved_at']
+            keys = list(self.entries.keys()) + ['saved_at', 'missing_required']
+            any_missing = False
             with open('fm6_filled.csv', 'w', newline='', encoding='utf-8') as outf:
                 w = csv.writer(outf)
                 w.writerow(keys)
                 for r in rows:
-                    w.writerow([r.get(k, '') for k in keys])
-            messagebox.showinfo('Export', 'Wrote fm6_filled.csv')
+                    mr = r.get('missing_required', [])
+                    if mr:
+                        any_missing = True
+                    row = [r.get(k, '') for k in list(self.entries.keys())]
+                    row += [r.get('saved_at', ''), ';'.join(mr)]
+                    w.writerow(row)
+            if any_missing:
+                messagebox.showwarning('Exported with missing', 'Exported CSV but some saved forms had missing required fields (see Missing column).')
+            else:
+                messagebox.showinfo('Export', 'Wrote fm6_filled.csv')
         except Exception as e:
             messagebox.showerror('Export error', str(e))
 
