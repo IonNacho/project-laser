@@ -61,16 +61,30 @@ class FM6App(tk.Tk):
         frm = right
         ttk.Label(frm, text='FM6 Entry', font=('Helvetica', 14, 'bold')).pack(pady=8)
 
+        # load mapping if available
         self.entries = {}
-        fields = [
-            ('operator', 'Operator name'),
-            ('timestamp', 'Timestamp (auto)'),
-            ('lot', 'Lot number'),
-            ('eq_indicator', 'Digital force indicator (EQ0155-01)'),
-            ('eq_stand', 'Force test stand (EQ0155-03)'),
-            ('load_cell', 'Load cell (EQ0155-05-A/B)'),
-            ('comments', 'Comments'),
-        ]
+        mapping_file = 'fm6_mapping.json'
+        if os.path.exists(mapping_file):
+            try:
+                with open(mapping_file, 'r', encoding='utf-8') as f:
+                    m = json.load(f)
+                    fields = [(it['key'], it['label']) for it in m.get('fields', [])]
+            except Exception:
+                fields = [
+                    ('operator', 'Operator name'),
+                    ('timestamp', 'Timestamp (auto)'),
+                    ('lot', 'Lot number'),
+                ]
+        else:
+            fields = [
+                ('operator', 'Operator name'),
+                ('timestamp', 'Timestamp (auto)'),
+                ('lot', 'Lot number'),
+                ('eq_indicator', 'Digital force indicator (EQ0155-01)'),
+                ('eq_stand', 'Force test stand (EQ0155-03)'),
+                ('load_cell', 'Load cell (EQ0155-05-A/B)'),
+                ('comments', 'Comments'),
+            ]
 
         for key, label in fields:
             row = ttk.Frame(frm)
