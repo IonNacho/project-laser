@@ -252,7 +252,8 @@ def session_create():
 
 @app.route('/')
 def index():
-    return render_template_string(INDEX_HTML)
+    # Serve the original simple UI by default to help troubleshooting
+    return render_template_string(LEGACY_HTML)
 
 
 @app.route('/legacy')
