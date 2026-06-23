@@ -66,12 +66,12 @@ def save_session(lot, raw, m00='', test_type=''):
     'test_type': test_type,
     'started_at': datetime.datetime.now(datetime.timezone.utc).isoformat(),
   }
-    try:
-        with open(SESS_FILE, 'a', encoding='utf-8') as f:
-            f.write(json.dumps(rec) + '\n')
-    except Exception:
-        pass
-    return rec
+  try:
+    with open(SESS_FILE, 'a', encoding='utf-8') as f:
+      f.write(json.dumps(rec) + '\n')
+  except Exception:
+    pass
+  return rec
 
 
 @app.route('/')
@@ -83,34 +83,35 @@ def index():
 def scan():
     js = request.get_json(force=True)
     text = (js.get('text') or '').strip()
-  # parse lot starting with LN (e.g. LN12345 or LN:12345)
-  lot = ''
-  m = re.search(r'\bLN[:\s-]*([A-Za-z0-9-]+)\b', text, re.IGNORECASE)
-  if m:
-    lot = m.group(1)
-  else:
-    # fallback: find first token that is not an M00 code and looks like a lot
-    parts = re.split(r'\s|,|;|\||\(|\)', text)
-    parts = [p for p in parts if p]
-    lot_candidate = ''
-    for p in parts:
-      if re.match(r'(?i)^M00\d{3}$', p):
-        continue
-      # ignore short tokens like 'LN' alone
-      if len(p) >= 3:
-        lot_candidate = p
-        break
-    if lot_candidate:
-      lot = lot_candidate
 
-  # find M00 code
-  m00 = ''
-  mm = re.search(r'\b(M00\d{3})\b', text, re.IGNORECASE)
-  if mm:
-    m00 = mm.group(1).upper()
-  test_type = TEST_MAP.get(m00, '')
+    # parse lot starting with LN (e.g. LN12345 or LN:12345)
+    lot = ''
+    m = re.search(r'\bLN[:\s-]*([A-Za-z0-9-]+)\b', text, re.IGNORECASE)
+    if m:
+        lot = m.group(1)
+    else:
+        # fallback: find first token that is not an M00 code and looks like a lot
+        parts = re.split(r'\s|,|;|\||\(|\)', text)
+        parts = [p for p in parts if p]
+        lot_candidate = ''
+        for p in parts:
+            if re.match(r'(?i)^M00\d{3}$', p):
+                continue
+            # ignore short tokens like 'LN' alone
+            if len(p) >= 3:
+                lot_candidate = p
+                break
+        if lot_candidate:
+            lot = lot_candidate
 
-  rec = save_session(lot, text, m00=m00, test_type=test_type)
+    # find M00 code
+    m00 = ''
+    mm = re.search(r'\b(M00\d{3})\b', text, re.IGNORECASE)
+    if mm:
+        m00 = mm.group(1).upper()
+    test_type = TEST_MAP.get(m00, '')
+
+    rec = save_session(lot, text, m00=m00, test_type=test_type)
     return jsonify(rec)
 
 
