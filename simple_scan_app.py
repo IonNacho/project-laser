@@ -8,11 +8,20 @@ Features:
 - Posts to /scan, saves to `sessions_minimal.jsonl`
 """
 from flask import Flask, request, jsonify, render_template_string
-import datetime, json, os
+import datetime, json, os, re
 
 app = Flask(__name__)
 
 SESS_FILE = 'sessions_minimal.jsonl'
+
+# mapping M00 -> test type
+TEST_MAP = {
+  'M00124': 'Blister pack',
+  'M00120': 'Header/Retainer caps',
+  'M00123': 'Feed through Pin',
+  'M00207': 'Battery weld',
+  'M00121': 'Strap weld',
+}
 
 HTML = '''
 <!doctype html>
@@ -48,13 +57,15 @@ HTML = '''
 '''
 
 
-def save_session(lot, raw):
-    rec = {
-        'session_id': datetime.datetime.now().strftime('%Y%m%d%H%M%S%f'),
-        'lot': lot,
-        'raw': raw,
-        'started_at': datetime.datetime.now(datetime.timezone.utc).isoformat(),
-    }
+def save_session(lot, raw, m00='', test_type=''):
+  rec = {
+    'session_id': datetime.datetime.now().strftime('%Y%m%d%H%M%S%f'),
+    'lot': lot,
+    'raw': raw,
+    'm00': m00,
+    'test_type': test_type,
+    'started_at': datetime.datetime.now(datetime.timezone.utc).isoformat(),
+  }
     try:
         with open(SESS_FILE, 'a', encoding='utf-8') as f:
             f.write(json.dumps(rec) + '\n')
@@ -72,9 +83,26 @@ def index():
 def scan():
     js = request.get_json(force=True)
     text = (js.get('text') or '').strip()
-    # simple heuristic: use whole scanned text as lot
-    lot = text
-    rec = save_session(lot, text)
+  # parse lot starting with LN (e.g. LN12345 or LN:12345)
+  lot = ''
+  m = re.search(r'\bLN[:\s-]*([A-Za-z0-9-]+)\b', text, re.IGNORECASE)
+  if m:
+    lot = m.group(1)
+  else:
+    # fallback: first token
+    parts = re.split(r'\s|,|;|\||\(|\)', text)
+    parts = [p for p in parts if p]
+    if parts:
+      lot = parts[0]
+
+  # find M00 code
+  m00 = ''
+  mm = re.search(r'\b(M00\d{3})\b', text, re.IGNORECASE)
+  if mm:
+    m00 = mm.group(1).upper()
+  test_type = TEST_MAP.get(m00, '')
+
+  rec = save_session(lot, text, m00=m00, test_type=test_type)
     return jsonify(rec)
 
 
