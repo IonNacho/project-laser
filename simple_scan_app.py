@@ -89,11 +89,19 @@ def scan():
   if m:
     lot = m.group(1)
   else:
-    # fallback: first token
+    # fallback: find first token that is not an M00 code and looks like a lot
     parts = re.split(r'\s|,|;|\||\(|\)', text)
     parts = [p for p in parts if p]
-    if parts:
-      lot = parts[0]
+    lot_candidate = ''
+    for p in parts:
+      if re.match(r'(?i)^M00\d{3}$', p):
+        continue
+      # ignore short tokens like 'LN' alone
+      if len(p) >= 3:
+        lot_candidate = p
+        break
+    if lot_candidate:
+      lot = lot_candidate
 
   # find M00 code
   m00 = ''
