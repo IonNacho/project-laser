@@ -128,6 +128,40 @@ INDEX_HTML = '''
 '''
 
 
+LEGACY_HTML = '''
+<!doctype html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Project Laser — Scan</title>
+    <style>body{font-family:Arial;margin:20px}label{display:block;margin-top:8px}#result{margin-top:12px;padding:8px;border:1px solid #ddd}</style>
+</head>
+<body>
+    <h2>Scan Lot (focus input and scan)</h2>
+    <input id="scan" autofocus style="width:80%" placeholder="Scan here or type..."> 
+    <button id="btn">Submit</button>
+    <div id="result"></div>
+
+    <script>
+        const input = document.getElementById('scan');
+        const btn = document.getElementById('btn');
+        const result = document.getElementById('result');
+        function post(text){
+            fetch('/scan', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({text:text})})
+                .then(r=>r.json()).then(j=>{
+                    result.innerHTML = '<pre>'+JSON.stringify(j,null,2)+'</pre>';
+                    input.value = '';
+                    input.focus();
+                }).catch(e=>{ result.innerText = 'Error: '+e });
+        }
+        btn.addEventListener('click', ()=> post(input.value));
+        input.addEventListener('keydown', (e)=>{ if(e.key==='Enter') post(input.value); });
+    </script>
+</body>
+</html>
+'''
+
+
 def parse_scan(text):
     # try to find M00 code, Rev, Lot, Exp
     t = text.strip()
@@ -219,6 +253,11 @@ def session_create():
 @app.route('/')
 def index():
     return render_template_string(INDEX_HTML)
+
+
+@app.route('/legacy')
+def legacy():
+    return render_template_string(LEGACY_HTML)
 
 
 @app.route('/scan', methods=['POST'])
