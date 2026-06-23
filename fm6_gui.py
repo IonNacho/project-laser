@@ -11,6 +11,8 @@ import json
 import datetime
 import os
 import threading
+import json
+import os
 
 try:
     from PIL import Image, ImageTk
@@ -124,6 +126,51 @@ class FM6App(tk.Tk):
         self.capture_entry.place_forget()
         self.capture_entry.bind('<Key>', self.on_key)
         self.capture_entry.bind('<Return>', self.on_return)
+
+        # start polling for prefill file
+        try:
+            self.after(1000, self.check_prefill)
+        except Exception:
+            pass
+
+    def check_prefill(self):
+        try:
+            if os.path.exists('fm6_prefill.json'):
+                with open('fm6_prefill.json', 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+                # populate known fields
+                if 'lot' in data and 'lot' in self.entries:
+                    try:
+                        self.entries['lot']['widget'].delete(0, 'end')
+                        self.entries['lot']['widget'].insert(0, data.get('lot',''))
+                    except Exception:
+                        pass
+                if 'timestamp' in data and 'timestamp' in self.entries:
+                    try:
+                        self.entries['timestamp']['widget'].delete(0, 'end')
+                        self.entries['timestamp']['widget'].insert(0, data.get('timestamp',''))
+                    except Exception:
+                        pass
+                # put test_type into comments field if exists
+                if 'test_type' in data and 'comments' in self.entries:
+                    try:
+                        self.entries['comments']['widget'].delete(0, 'end')
+                        self.entries['comments']['widget'].insert(0, data.get('test_type',''))
+                    except Exception:
+                        pass
+                # remove the prefill to avoid reapplying
+                try:
+                    os.remove('fm6_prefill.json')
+                except Exception:
+                    pass
+                messagebox.showinfo('Prefill', 'FM6 form pre-filled from scan (lot: '+data.get('lot','')+')')
+        except Exception:
+            pass
+        # schedule next check
+        try:
+            self.after(1000, self.check_prefill)
+        except Exception:
+            pass
 
     def start_capture(self, key):
         self.current_capture_target = key
