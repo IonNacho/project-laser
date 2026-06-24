@@ -1,0 +1,14 @@
+[Unit]
+Description=Serial Tap Service (reads serial, logs CSV, broadcasts via WebSocket)
+After=network.target
+
+[Service]
+Type=simple
+User=pi
+WorkingDirectory=/opt/project-laser
+ExecStart=/usr/bin/env python3 serial_tap.py --port /dev/ttyUSB0 --baud 9600 --csv /var/log/serial_tap/data.csv --ws-host 0.0.0.0 --ws-port 8765
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
