@@ -5,9 +5,9 @@ After=network.target
 [Service]
 Type=simple
 User=pi
-WorkingDirectory=/home/pi/project-laser
+WorkingDirectory=/home/babypi1/project-laser
 # Use absolute paths so systemd finds the correct files/python
-ExecStart=/usr/bin/env python3 /home/pi/project-laser/serial_tap.py --port /dev/ttyUSB0 --baud 9600 --csv /var/log/serial_tap/data.csv --ws-host 0.0.0.0 --ws-port 8765
+ExecStart=/usr/bin/env python3 /home/babypi1/project-laser/serial_tap.py --port /dev/ttyUSB0 --baud 9600 --csv /var/log/serial_tap/data.csv --ws-host 0.0.0.0 --ws-port 8765
 Restart=on-failure
 RestartSec=5
 
